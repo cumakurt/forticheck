@@ -1,0 +1,58 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Local / generated
+*.log
+forticheck_report.html
+*.local
+sample_report.html
+sample_report.json
+sample_fortigate_all_findings_*.html
+tests/output/*.html
+tests/output/*.json
+
+# Real firewall configs (do not commit customer data)
+EGEYAPI_*.conf
+
+# Ruff / Mypy
+.ruff_cache/
+.mypy_cache/

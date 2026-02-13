@@ -1,0 +1,10 @@
+# FortiCheck runtime dependencies (Python 3.11+)
+# Install: pip install -r requirements.txt
+
+click>=8.1
+pydantic>=2.5
+netaddr>=0.9
+networkx>=3.2
+jinja2>=3.1
+rich>=13.7
+pyyaml>=6.0

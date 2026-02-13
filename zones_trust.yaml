@@ -1,0 +1,43 @@
+# Default zone trust levels configuration
+# Customize this file for your environment
+
+zones:
+  wan1:
+    trust_level: 0
+    label: "Internet (WAN1)"
+  wan2:
+    trust_level: 0
+    label: "Internet (WAN2)"
+  dmz:
+    trust_level: 30
+    label: "DMZ"
+  internal:
+    trust_level: 70
+    label: "Internal LAN"
+  servers:
+    trust_level: 80
+    label: "Server Farm"
+  dc:
+    trust_level: 100
+    label: "Domain Controllers"
+  management:
+    trust_level: 95
+    label: "Management Network"
+  guest:
+    trust_level: 20
+    label: "Guest WiFi"
+  voip:
+    trust_level: 60
+    label: "VoIP Network"
+  iot:
+    trust_level: 40
+    label: "IoT Devices"
+  scada:
+    trust_level: 85
+    label: "SCADA/ICS"
+
+service_sensitivity:
+  critical: [3389, 445, 5985, 5986, 22, 23, 5900]
+  high: [1433, 3306, 5432, 1521, 27017, 389, 636, 88]
+  medium: [53, 123, 161, 514]
+  low: [80, 443, 8080, 8443]
