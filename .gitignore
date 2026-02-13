@@ -47,8 +47,13 @@ forticheck_report.html
 sample_report.html
 sample_report.json
 sample_fortigate_all_findings_*.html
+diff_result.json
 tests/output/*.html
 tests/output/*.json
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Real firewall configs (do not commit customer data)
 EGEYAPI_*.conf

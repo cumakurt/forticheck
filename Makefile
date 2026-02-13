@@ -17,7 +17,7 @@ help:
 	@echo "  make typecheck     Run mypy type checker."
 	@echo "  make clean         Remove build artifacts and caches."
 	@echo "  make docker-build  Build Docker image ($(IMAGE_NAME))."
-	@echo "  make docker-run CONFIG=<file.conf>  Run analysis in Docker; report in current directory."
+	@echo "  make docker-run CONFIG=<file.conf> [OUTPUT=<report.html>]  Run analysis in Docker (current dir = workspace)."
 	@echo "  make docker-diff BEFORE=<old.conf> AFTER=<new.conf>  Run config diff in Docker."
 
 install:
@@ -42,16 +42,22 @@ clean:
 	rm -rf dist/
 	rm -rf *.egg-info/
 	rm -rf .eggs/
+	rm -rf __pycache__
 	rm -rf .pytest_cache/
 	rm -rf .ruff_cache/
 	rm -rf .mypy_cache/
+	rm -rf forticheck/__pycache__
+	rm -rf forticheck/*/__pycache__
+	rm -rf tests/__pycache__
 
 docker-build:
 	docker build -t $(IMAGE_NAME) .
 
 docker-run:
-	@if [ -z "$(CONFIG)" ]; then echo "Usage: make docker-run CONFIG=your.conf"; exit 1; fi
-	docker run --rm -v "$$(pwd):$(WORKSPACE)" $(IMAGE_NAME) analyze -c $(WORKSPACE)/$(CONFIG)
+	@if [ -z "$(CONFIG)" ]; then echo "Usage: make docker-run CONFIG=your.conf [OUTPUT=forticheck_report.html]"; exit 1; fi
+	@OUT="$${OUTPUT:-forticheck_report.html}"; \
+	case "$$OUT" in /*) ;; *) OUT="/workspace/$$OUT";; esac; \
+	docker run --rm -v "$$(pwd):$(WORKSPACE)" -v /tmp:/tmp $(IMAGE_NAME) analyze -c $(WORKSPACE)/$(CONFIG) -o "$$OUT"
 
 docker-diff:
 	@if [ -z "$(BEFORE)" ] || [ -z "$(AFTER)" ]; then echo "Usage: make docker-diff BEFORE=old.conf AFTER=new.conf"; exit 1; fi

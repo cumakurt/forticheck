@@ -1,5 +1,8 @@
 # FortiCheck
 
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
 **Security Analysis for FortiGate Firewalls**
 
 FortiCheck is a powerful, offline static analysis tool designed to uncover security risks, misconfigurations, and attack paths in FortiGate firewall configurations. Unlike simple compliance checkers, FortiCheck builds a graph-based model of your network to understand the *intent* and *impact* of your policies.
@@ -59,40 +62,52 @@ From the project root:
 ```bash
 git clone https://github.com/cumakurt/forticheck.git
 cd forticheck
-docker build -t forticheck:latest .
+make docker-build
+# or: docker build -t forticheck:latest .
+```
+
+### Quick start
+
+Place your FortiGate config in the current directory, mount it as `/workspace`, and run:
+
+```bash
+# Config and report in current directory (recommended)
+docker run --rm -v "$(pwd):/workspace" forticheck:latest analyze -c sample_fortigate.conf -o /workspace/report.html
+# Report: ./report.html
 ```
 
 ### Where reports are written
 
-The container uses the working directory `/workspace`. To get reports on your host machine you must mount a directory into the container. Two common approaches:
+The container uses `/workspace` as the working directory. **You must mount your current directory** so the config file is visible and the report is written to your host:
 
-| Goal | Mount | Config path | Output option |
-|------|--------|--------------|----------------|
-| Reports in current directory | `-v $(pwd):/workspace` | `-c /workspace/your.conf` | Omit `-o` (default: `/workspace/<name>_<date>_<time>.html`) or `-o /workspace/report.html` |
-| Reports in `/tmp` | `-v /tmp:/tmp` | `-c /tmp/your.conf` (or mount config elsewhere) | `-o /tmp/report.html` or `-o /tmp/fw_2025-02-13_143022.html` |
+| Goal | Mount | Config | Output |
+|------|--------|--------|--------|
+| Current directory | `-v $(pwd):/workspace` | `-c sample.conf` or `-c /workspace/sample.conf` | `-o /workspace/report.html` |
+| `/tmp` on host | `-v /tmp:/tmp` | Config must be in `/tmp` | `-o /tmp/report.html` |
 
-If you do not mount a volume, the report is created inside the container and is not accessible on the host.
+> **Note:** On some systems, writing to `/tmp` may cause permission errors. Prefer `/workspace` (current directory) for output.
+
+### Example: Using Make
+
+```bash
+make docker-build
+make docker-run CONFIG=sample_fortigate.conf
+# Report: ./forticheck_report.html (default)
+
+make docker-run CONFIG=sample_fortigate.conf OUTPUT=audit.html
+# Report: ./audit.html
+```
 
 ### Example: Report in current directory
 
-Place your FortiGate config in the current directory, mount it as `/workspace`, and run analyze. The default output name is `{config_stem}_{YYYY-MM-DD_HHMMSS}.html` and will appear in the current directory.
-
 ```bash
-# One config file in current directory
-docker run --rm -v "$(pwd):/workspace" forticheck:latest analyze -c /workspace/fortigate.conf
-# Report: ./fortigate_2025-02-13_143022.html
-
-# Explicit output path in current directory
 docker run --rm -v "$(pwd):/workspace" forticheck:latest analyze -c /workspace/fortigate.conf -o /workspace/audit_report.html
 # Report: ./audit_report.html
 ```
 
 ### Example: Report in /tmp
 
-Mount `/tmp` so that both config and report paths are under `/tmp` on the host.
-
 ```bash
-# Copy config to /tmp (or use a path already in /tmp)
 cp /path/to/fortigate.conf /tmp/
 docker run --rm -v /tmp:/tmp forticheck:latest analyze -c /tmp/fortigate.conf -o /tmp/forticheck_report.html
 # Report on host: /tmp/forticheck_report.html
@@ -128,18 +143,10 @@ docker run --rm -v "$(pwd):/workspace" forticheck:latest diff \
 | Option | Description |
 |--------|-------------|
 | `--rm` | Remove the container after the run (recommended). |
-| `-v HOST_DIR:/workspace` | Mount host directory so configs and reports are on the host. Use `-v /tmp:/tmp` for `/tmp`. |
-| `-c /workspace/file.conf` | Path to config inside the container (must match mounted path). |
-| `-o /workspace/report.html` | Output path inside the container (must be in a mounted path to see the file on the host). |
-
-### Using Make (if Makefile is present)
-
-If the project includes a Makefile:
-
-```bash
-make docker-build          # Build image
-make docker-run CONFIG=fw.conf   # Analyze fw.conf, report in current directory
-```
+| `-v $(pwd):/workspace` | Mount current directory; config and report paths use your local files. |
+| `-v /tmp:/tmp` | Mount `/tmp` (optional) for output to host's `/tmp`. |
+| `-c file.conf` | Config path (relative to `/workspace` when mounted). |
+| `-o /workspace/report.html` | Output path; use `/workspace/` to write to current directory. |
 
 ## Usage
 
@@ -261,6 +268,16 @@ FortiCheck processes configurations in 8 layers:
 6.  **Simulation:** BFS/DFS based attack path discovery.
 7.  **Scoring:** Multi-factor risk calculation.
 8.  **Reporting:** Jinja2-based HTML generation.
+
+## Development
+
+```bash
+make install-dev    # Install with dev dependencies
+make test           # Run tests
+make lint           # Run ruff
+make typecheck      # Run mypy
+make clean          # Remove build artifacts, caches (.pytest_cache, .ruff_cache, etc.)
+```
 
 ## Contributing
 

@@ -15,7 +15,6 @@ authors = [
 keywords = ["fortigate", "firewall", "security", "audit", "cis", "compliance"]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "Programming Language :: Python :: 3",
@@ -53,6 +52,9 @@ forticheck = "forticheck.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["forticheck*"]
+
+[tool.setuptools.package-data]
+forticheck = ["reporting/templates/*.html"]
 
 [tool.ruff]
 target-version = "py311"

@@ -1,5 +1,7 @@
 # FortiCheck — FortiGate configuration security analyzer
-# Report output: use -v to mount a directory (e.g. $(pwd) or /tmp) and write reports there.
+#
+# Run with current directory mounted so config and output use your local files:
+#   docker run --rm -v "$(pwd):/workspace" forticheck:latest analyze -c sample.conf -o /workspace/report.html
 
 FROM python:3.12-slim
 

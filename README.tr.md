@@ -1,5 +1,8 @@
 # FortiCheck
 
+[![Lisans: GPL-3.0](https://img.shields.io/badge/Lisans-GPL--3.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
 **FortiGate Firewalları için Kurumsal Güvenlik Analizi**
 
 FortiCheck, FortiGate firewall konfigürasyonlarını çevrimdışı (offline) olarak analiz eden; güvenlik açıklarını, hatalı yapılandırmaları ve potansiyel saldırı yollarını tespit eden güçlü bir statik analiz aracıdır. Basit uyumluluk (compliance) araçlarının aksine FortiCheck, ağınızı bir **graf modeli** ile haritalandırarak politikalarınızın *niyetini* ve *etkisini* analiz eder.
@@ -59,37 +62,50 @@ Proje kök dizininde:
 ```bash
 git clone https://github.com/cumakurt/forticheck.git
 cd forticheck
-docker build -t forticheck:latest .
+make docker-build
+# veya: docker build -t forticheck:latest .
+```
+
+### Hızlı başlangıç
+
+Config dosyanızı mevcut dizine koyun, dizini `/workspace` olarak bağlayın ve çalıştırın:
+
+```bash
+# Config ve rapor mevcut dizinde (önerilen)
+docker run --rm -v "$(pwd):/workspace" forticheck:latest analyze -c sample_fortigate.conf -o /workspace/rapor.html
+# Rapor: ./rapor.html
 ```
 
 ### Raporların yazıldığı yer
 
-Konteyner çalışma dizini olarak `/workspace` kullanır. Raporların ana makinede görünmesi için bir dizini konteynere bağlamanız (volume mount) gerekir. İki yaygın kullanım:
+Konteyner `/workspace` dizinini kullanır. **Config dosyasının görünmesi ve raporun host'a yazılması için mevcut dizininizi bağlamanız gerekir:**
 
-| Amaç | Mount | Config yolu | Çıktı seçeneği |
-|------|--------|--------------|----------------|
-| Raporlar bulunduğunuz dizinde | `-v $(pwd):/workspace` | `-c /workspace/dosya.conf` | `-o` yazmadan (varsayılan: `/workspace/<ad>_<tarih>_<saat>.html`) veya `-o /workspace/rapor.html` |
-| Raporlar /tmp içinde | `-v /tmp:/tmp` | `-c /tmp/dosya.conf` | `-o /tmp/rapor.html` |
+| Amaç | Mount | Config | Çıktı |
+|------|--------|--------|--------|
+| Mevcut dizin | `-v $(pwd):/workspace` | `-c sample.conf` veya `-c /workspace/sample.conf` | `-o /workspace/rapor.html` |
+| Host'un /tmp'i | `-v /tmp:/tmp` | Config /tmp içinde olmalı | `-o /tmp/rapor.html` |
 
-Volume bağlamazsanız rapor yalnızca konteyner içinde oluşur ve ana makineden erişilemez.
+> **Not:** Bazı sistemlerde `/tmp` dizinine yazarken izin hatası alınabilir. Çıktı için `/workspace` (mevcut dizin) kullanmanız önerilir.
 
-### Örnek: Rapor bulunduğunuz dizinde
-
-Config dosyanızı mevcut dizine koyun, dizini `/workspace` olarak bağlayın. Varsayılan çıktı adı `{config_adı}_{YYYY-MM-DD_HHMMSS}.html` olur ve mevcut dizinde görünür.
+### Örnek: Make ile
 
 ```bash
-# Tek config, çıktı varsayılan adda
-docker run --rm -v "$(pwd):/workspace" forticheck:latest analyze -c /workspace/fortigate.conf
-# Rapor: ./fortigate_2025-02-13_143022.html
+make docker-build
+make docker-run CONFIG=sample_fortigate.conf
+# Rapor: ./forticheck_report.html (varsayılan)
 
-# Çıktı dosya adını belirterek
+make docker-run CONFIG=sample_fortigate.conf OUTPUT=denetim.html
+# Rapor: ./denetim.html
+```
+
+### Örnek: Rapor mevcut dizinde
+
+```bash
 docker run --rm -v "$(pwd):/workspace" forticheck:latest analyze -c /workspace/fortigate.conf -o /workspace/denetim_raporu.html
 # Rapor: ./denetim_raporu.html
 ```
 
 ### Örnek: Rapor /tmp içinde
-
-Config ve raporun ikisini de ana makinede `/tmp` altında görmek için `/tmp` bağlayın.
 
 ```bash
 cp /path/to/fortigate.conf /tmp/
@@ -127,18 +143,10 @@ docker run --rm -v "$(pwd):/workspace" forticheck:latest diff \
 | Seçenek | Açıklama |
 |--------|----------|
 | `--rm` | Çalışma bitince konteyneri siler (önerilir). |
-| `-v HOST_DIZIN:/workspace` | Ana makine dizinini bağlar; config ve raporlar host’ta kalır. `/tmp` için `-v /tmp:/tmp` kullanın. |
-| `-c /workspace/dosya.conf` | Konteyner içindeki config yolu (bağladığınız yolla uyumlu olmalı). |
-| `-o /workspace/rapor.html` | Konteyner içindeki çıktı yolu (dosyayı host’ta görmek için mount edilen bir yol olmalı). |
-
-### Makefile varsa
-
-Projede Makefile varsa:
-
-```bash
-make docker-build
-make docker-run CONFIG=fw.conf
-```
+| `-v $(pwd):/workspace` | Mevcut dizini bağlar; config ve rapor local dosyalarınızı kullanır. |
+| `-v /tmp:/tmp` | `/tmp` dizinini bağlar (isteğe bağlı, host /tmp'e yazmak için). |
+| `-c dosya.conf` | Konteyner içindeki config yolu (bağladığınız yolla uyumlu olmalı). |
+| `-o /workspace/rapor.html` | Çıktı yolu; mevcut dizine yazmak için `/workspace/` kullanın. |
 
 ## Kullanım
 
@@ -232,6 +240,16 @@ FortiCheck analiz sürecini 8 katmanda gerçekleştirir:
 6.  **Simülasyon:** BFS/DFS tabanlı saldırı yolu keşfi.
 7.  **Puanlama:** Çok faktörlü risk hesaplaması.
 8.  **Raporlama:** Jinja2 tabanlı HTML rapor oluşturma.
+
+## Geliştirme
+
+```bash
+make install-dev    # Geliştirme bağımlılıklarıyla kurulum
+make test           # Testleri çalıştır
+make lint           # Ruff ile lint
+make typecheck      # mypy ile tip kontrolü
+make clean          # Build artefaktlarını ve cache'leri temizle (.pytest_cache, .ruff_cache vb.)
+```
 
 ## Katkıda Bulunma
 
