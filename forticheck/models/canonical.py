@@ -374,16 +374,20 @@ class VPNTunnel(BaseModel):
         weak_enc = {"des", "3des", "null"}
         weak_hash = {"md5"}
         for e in self.phase1_encryption + self.phase2_encryption:
-            if e.lower() in weak_enc:
+            parts = {part for part in e.lower().split("-") if part}
+            if e.lower() in weak_enc or parts & weak_enc:
                 return True
         for h in self.phase1_hash + self.phase2_hash:
-            if h.lower() in weak_hash:
+            parts = {part for part in h.lower().split("-") if part}
+            if h.lower() in weak_hash or parts & weak_hash:
                 return True
         return False
 
     @property
     def has_pfs(self) -> bool:
-        return bool(self.phase2_pfs) and self.phase2_pfs != "no-pfs"
+        pfs = self.phase2_pfs.strip().lower()
+        disabled_values = {"disable", "disabled", "no", "none", "no-pfs", "0", "false"}
+        return bool(pfs) and pfs not in disabled_values
 
 
 # ---------------------------------------------------------------------------

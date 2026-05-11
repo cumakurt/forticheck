@@ -1,9 +1,5 @@
 """Tests for CIS benchmark analyzer."""
 
-from unittest.mock import MagicMock
-
-import pytest
-
 from forticheck.analysis.cis import CisAnalyzer
 from forticheck.parsers.fortigate import FortiGateParser
 
@@ -46,3 +42,23 @@ end
     assert score >= 0 and score <= 100
     # More passed checks => higher score
     assert len(findings) < 10
+
+
+def test_cis_handles_invalid_timeout_and_reports_interface_name() -> None:
+    parser = FortiGateParser()
+    parser.parse_string("""
+config system global
+    set hostname "MY-FW"
+    set admintimeout invalid
+end
+config system interface
+    edit "wan1"
+        set allowaccess ping http
+    next
+end
+""")
+
+    findings, _ = CisAnalyzer().analyze(parser)
+    descriptions = "\n".join(f.description for f in findings)
+    assert "wan1" in descriptions
+    assert "unknown" not in descriptions

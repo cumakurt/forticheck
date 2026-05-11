@@ -18,7 +18,7 @@ from forticheck.models.findings import Finding, FindingCategory, Severity
 logger = logging.getLogger(__name__)
 
 MGMT_KEYWORDS = {"mgmt", "management", "admin", "ha-mgmt"}
-VPN_SENSITIVE = {"RDP", "SMB", "SSH", "TELNET", "WinRM", "3389", "445", "22", "23"}
+VPN_SENSITIVE = {"RDP", "SMB", "SSH", "TELNET", "WINRM", "3389", "445", "22", "23"}
 
 
 class ImplicitTrustEngine:

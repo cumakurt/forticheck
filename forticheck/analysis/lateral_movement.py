@@ -14,7 +14,10 @@ from forticheck.models.findings import Finding, FindingCategory, Severity
 
 logger = logging.getLogger(__name__)
 
-SENSITIVE_SERVICES = {"RDP", "SMB", "SSH", "TELNET", "WinRM", "VNC", "MS-SQL", "MYSQL", "3389", "445", "22", "23", "5900"}
+SENSITIVE_SERVICES = {
+    "RDP", "SMB", "SSH", "TELNET", "WINRM", "VNC", "MS-SQL", "MYSQL",
+    "3389", "445", "22", "23", "5900", "5985", "5986",
+}
 HIGH_TRUST = 70
 
 

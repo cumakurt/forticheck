@@ -15,7 +15,10 @@ from forticheck.normalizer.resolver import ObjectResolver
 
 logger = logging.getLogger(__name__)
 
-SENSITIVE_SERVICES = {"RDP", "SMB", "SSH", "TELNET", "WinRM", "VNC", "MS-SQL", "MYSQL", "3389", "445", "22", "23", "5900", "1433", "3306"}
+SENSITIVE_SERVICES = {
+    "RDP", "SMB", "SSH", "TELNET", "WINRM", "VNC", "MS-SQL", "MYSQL",
+    "3389", "445", "22", "23", "5900", "1433", "3306", "5985", "5986",
+}
 
 
 class BlastRadiusEngine:

@@ -21,6 +21,20 @@ logger = logging.getLogger(__name__)
 CRITICAL_PORTS = {3389, 445, 5985, 5986, 22, 23, 5900}
 HIGH_PORTS = {1433, 3306, 5432, 1521, 27017, 389, 636, 88}
 MEDIUM_PORTS = {53, 123, 161, 514}
+BUILTIN_SERVICE_DEFINITIONS: dict[str, tuple[str, str, ServiceSensitivity]] = {
+    "HTTP": ("TCP", "80", ServiceSensitivity.LOW),
+    "HTTPS": ("TCP", "443", ServiceSensitivity.LOW),
+    "SSH": ("TCP", "22", ServiceSensitivity.CRITICAL),
+    "TELNET": ("TCP", "23", ServiceSensitivity.CRITICAL),
+    "DNS": ("TCP", "53", ServiceSensitivity.MEDIUM),
+    "FTP": ("TCP", "21", ServiceSensitivity.HIGH),
+    "SMTP": ("TCP", "25", ServiceSensitivity.MEDIUM),
+    "PING": ("ICMP", "", ServiceSensitivity.LOW),
+    "RDP": ("TCP", "3389", ServiceSensitivity.CRITICAL),
+    "SMB": ("TCP", "445", ServiceSensitivity.CRITICAL),
+    "MYSQL": ("TCP", "3306", ServiceSensitivity.HIGH),
+    "MS-SQL": ("TCP", "1433", ServiceSensitivity.HIGH),
+}
 
 
 class ObjectResolver:
@@ -175,29 +189,34 @@ class ObjectResolver:
             if isinstance(udp_range, list):
                 udp_range = " ".join(udp_range)
 
+            tcp_ports = self._normalize_port_ranges(tcp_range)
+            udp_ports = self._normalize_port_ranges(udp_range)
+
             # Determine type
-            if "TCP" in protocol and tcp_range:
+            if "TCP" in protocol and tcp_ports:
                 svc_type = ServiceObjectType.TCP
-                port_range = self._normalize_port_range(tcp_range)
-            elif "UDP" in protocol and udp_range:
+                resolved_ports = tcp_ports + [p for p in udp_ports if p not in tcp_ports]
+            elif "UDP" in protocol and udp_ports:
                 svc_type = ServiceObjectType.UDP
-                port_range = self._normalize_port_range(udp_range)
+                resolved_ports = udp_ports
             elif protocol == "ICMP":
                 svc_type = ServiceObjectType.ICMP
-                port_range = ""
+                resolved_ports = []
             elif protocol == "IP":
                 svc_type = ServiceObjectType.IP
-                port_range = svc.get("protocol-number", "")
+                resolved_ports = self._to_str_list(svc.get("protocol-number", ""))
             else:
                 svc_type = ServiceObjectType.TCP
-                port_range = self._normalize_port_range(tcp_range or udp_range)
+                resolved_ports = tcp_ports or udp_ports
+
+            port_range = " ".join(resolved_ports)
 
             obj = ServiceObject(
                 id=name, name=name, type=svc_type,
                 protocol=protocol, port_range=port_range,
             )
-            obj.resolved_ports = [port_range] if port_range else []
-            obj.sensitivity = self._classify_service_sensitivity(port_range)
+            obj.resolved_ports = resolved_ports
+            obj.sensitivity = self._max_sensitivity(resolved_ports)
             self.service_objects[name] = obj
 
         # Special "ALL" service
@@ -210,21 +229,7 @@ class ObjectResolver:
         self.service_objects["ALL"] = all_svc
 
         # Common built-in services if not already defined
-        builtins = {
-            "HTTP": ("TCP", "80", ServiceSensitivity.LOW),
-            "HTTPS": ("TCP", "443", ServiceSensitivity.LOW),
-            "SSH": ("TCP", "22", ServiceSensitivity.CRITICAL),
-            "TELNET": ("TCP", "23", ServiceSensitivity.CRITICAL),
-            "DNS": ("TCP", "53", ServiceSensitivity.MEDIUM),
-            "FTP": ("TCP", "21", ServiceSensitivity.HIGH),
-            "SMTP": ("TCP", "25", ServiceSensitivity.MEDIUM),
-            "PING": ("ICMP", "", ServiceSensitivity.LOW),
-            "RDP": ("TCP", "3389", ServiceSensitivity.CRITICAL),
-            "SMB": ("TCP", "445", ServiceSensitivity.CRITICAL),
-            "MYSQL": ("TCP", "3306", ServiceSensitivity.HIGH),
-            "MS-SQL": ("TCP", "1433", ServiceSensitivity.HIGH),
-        }
-        for bname, (proto, port, sens) in builtins.items():
+        for bname, (proto, port, sens) in BUILTIN_SERVICE_DEFINITIONS.items():
             if bname not in self.service_objects:
                 self.service_objects[bname] = ServiceObject(
                     id=bname, name=bname,
@@ -359,6 +364,25 @@ class ObjectResolver:
         if ":" in port_str:
             port_str = port_str.split(":")[0]  # dst port is before ':'
         return port_str
+
+    @staticmethod
+    def _normalize_port_ranges(port_str: str) -> list[str]:
+        """Normalize one or more FortiGate destination port range tokens."""
+        normalized: list[str] = []
+        for token in port_str.strip().split():
+            port = ObjectResolver._normalize_port_range(token)
+            if port and port not in normalized:
+                normalized.append(port)
+        return normalized
+
+    @staticmethod
+    def _to_str_list(value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item)]
+        value_str = str(value)
+        return [value_str] if value_str else []
 
     def _classify_service_sensitivity(self, port_range: str) -> ServiceSensitivity:
         """Classify a port range by sensitivity."""

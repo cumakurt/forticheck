@@ -103,9 +103,17 @@ class UserVpnAnalyzer:
     def get_stats(self, device: Device) -> dict:
         """Collect reporting stats."""
         # Clean user objects for JSON report
-        user_list = [u.model_dump() for u in device.all_users]
-        group_list = [g.model_dump() for g in device.all_user_groups]
-        tunnel_list = [t.model_dump() for t in device.all_vpn_tunnels] 
+        user_list = [u.model_dump(mode="json") for u in device.all_users]
+        group_list = [g.model_dump(mode="json") for g in device.all_user_groups]
+        tunnel_list = []
+        for tunnel in device.all_vpn_tunnels:
+            tunnel_data = tunnel.model_dump(mode="json")
+            tunnel_data.update({
+                "has_weak_crypto": tunnel.has_weak_crypto,
+                "has_pfs": tunnel.has_pfs,
+                "is_dialup": tunnel.is_dialup,
+            })
+            tunnel_list.append(tunnel_data)
         admin_list = [u for u in user_list if u.get("role") == "admin"]
 
         return {

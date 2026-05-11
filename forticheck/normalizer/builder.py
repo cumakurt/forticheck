@@ -42,6 +42,21 @@ DEFAULT_TRUST_LEVELS: dict[str, int] = {
     "voip": 60, "iot": 40, "scada": 85, "ics": 85,
 }
 
+DISABLED_VALUES = {"", "disable", "disabled", "none", "no", "false", "0"}
+PROPOSAL_HASH_ALGORITHMS = {
+    "md5",
+    "sha1",
+    "sha128",
+    "sha224",
+    "sha256",
+    "sha384",
+    "sha512",
+    "prfsha1",
+    "prfsha256",
+    "prfsha384",
+    "prfsha512",
+}
+
 
 class CanonicalModelBuilder:
     """Build a canonical Device model from a parsed FortiGate config."""
@@ -309,14 +324,15 @@ class CanonicalModelBuilder:
             name = admin.get("__name__", "")
             if not name:
                 continue
+            two_factor = self._enabled_setting(admin.get("two-factor"))
             users.append(FirewallUser(
                 id=f"admin-{name}",
                 name=name,
                 type=UserType.LOCAL,
                 role=UserRole.ADMIN,
                 status="enable",  # admin users are enabled if present
-                two_factor=bool(admin.get("two-factor")),
-                two_factor_method=str(admin.get("two-factor", "")),
+                two_factor=two_factor,
+                two_factor_method=str(admin.get("two-factor", "")) if two_factor else "",
                 email=str(admin.get("email-to", "")),
             ))
 
@@ -326,14 +342,15 @@ class CanonicalModelBuilder:
             if not name:
                 continue
             factor = local.get("two-factor", "")
+            two_factor = self._enabled_setting(factor)
             users.append(FirewallUser(
                 id=f"local-{name}",
                 name=name,
                 type=UserType.LOCAL,
                 role=UserRole.VPN_USER,  # Default assumption for local users
                 status=str(local.get("status", "enable")),
-                two_factor=bool(factor),
-                two_factor_method=str(factor),
+                two_factor=two_factor,
+                two_factor_method=str(factor) if two_factor else "",
                 email=str(local.get("email-to", "")),
                 password_policy=str(local.get("passwd-policy", "")),
             ))
@@ -390,11 +407,9 @@ class CanonicalModelBuilder:
                 if p2.get("phase1name") == name:
                     p2_match = p2
                     break
-            
-            # Helper for list string fields
-            def get_list(d, k):
-                val = d.get(k, [])
-                return [val] if isinstance(val, str) else val
+
+            p1_encryption, p1_hash = self._split_vpn_proposals(p1.get("proposal", []))
+            p2_encryption, p2_hash = self._split_vpn_proposals(p2_match.get("proposal", []))
 
             tunnel = VPNTunnel(
                 id=name,
@@ -403,14 +418,64 @@ class CanonicalModelBuilder:
                 interface=str(p1.get("interface", "")),
                 remote_gateway=str(p1.get("remote-gw", "0.0.0.0")),
                 phase1_auth=str(p1.get("authmethod", "")),
-                phase1_encryption=get_list(p1, "proposal"),
-                phase1_dh_group=get_list(p1, "dhgrp"),
+                phase1_encryption=p1_encryption,
+                phase1_hash=p1_hash,
+                phase1_dh_group=self._to_list(p1.get("dhgrp", [])),
                 ike_version=str(p1.get("ike-version", "1")),
-                phase2_encryption=get_list(p2_match, "proposal"),
-                phase2_pfs=str(p2_match.get("pfs", "yes")),
-                src_subnet=str(p2_match.get("src-subnet", "")),
-                dst_subnet=str(p2_match.get("dst-subnet", "")),
+                phase2_encryption=p2_encryption,
+                phase2_hash=p2_hash,
+                phase2_pfs=str(p2_match.get("pfs", "enable")),
+                src_subnet=self._ipmask_value(p2_match.get("src-subnet", "")),
+                dst_subnet=self._ipmask_value(p2_match.get("dst-subnet", "")),
             )
             tunnels.append(tunnel)
 
         return tunnels
+
+    @staticmethod
+    def _enabled_setting(value: Any) -> bool:
+        """Interpret FortiGate enable/disable-like settings."""
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        if isinstance(value, list):
+            return any(CanonicalModelBuilder._enabled_setting(item) for item in value)
+        return str(value).strip().lower() not in DISABLED_VALUES
+
+    @staticmethod
+    def _to_list(value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item)]
+        value_str = str(value)
+        return [value_str] if value_str else []
+
+    @staticmethod
+    def _ipmask_value(value: Any) -> str:
+        if isinstance(value, list):
+            return " ".join(str(item) for item in value)
+        return str(value or "")
+
+    @staticmethod
+    def _split_vpn_proposals(value: Any) -> tuple[list[str], list[str]]:
+        """Split FortiGate proposal tokens such as 'aes256-sha256'."""
+        encryption: list[str] = []
+        hashes: list[str] = []
+
+        for proposal in CanonicalModelBuilder._to_list(value):
+            token = proposal.strip().lower()
+            if not token:
+                continue
+
+            parts = [part for part in token.split("-") if part]
+            hash_part = parts[-1] if parts and parts[-1] in PROPOSAL_HASH_ALGORITHMS else ""
+            enc_part = "-".join(parts[:-1]) if hash_part and len(parts) > 1 else token
+
+            if enc_part and enc_part not in encryption:
+                encryption.append(enc_part)
+            if hash_part and hash_part not in hashes:
+                hashes.append(hash_part)
+
+        return encryption, hashes

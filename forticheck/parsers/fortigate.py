@@ -49,9 +49,12 @@ class FortiGateParser:
     def parse_string(self, text: str) -> dict[str, Any]:
         """Parse FortiGate config text and return structured dict."""
         lines = text.splitlines()
-        self._extract_header(lines)
-
         self.raw_config = {}
+        self.hostname = ""
+        self.firmware_version = ""
+        self.serial_number = ""
+
+        self._extract_header(lines)
         self._parse_block(lines, 0, self.raw_config)
 
         logger.info(
@@ -99,9 +102,7 @@ class FortiGateParser:
         """
         i = start
         current_edit: dict[str, Any] | None = None
-        current_edit_name: str | None = None
         edits_list: list[dict[str, Any]] = []
-        section_path: str = ""
 
         while i < len(lines):
             line = lines[i].strip()
@@ -114,23 +115,21 @@ class FortiGateParser:
             # ---- config <section> ----
             if line.startswith("config "):
                 section_name = line[7:].strip()
-                section_path = section_name
 
                 sub_container: dict[str, Any] = {}
                 i = self._parse_block(lines, i, sub_container)
 
-                # If the sub-container has __edits__, store as list-dict
+                target = current_edit if current_edit is not None else container
                 if "__edits__" in sub_container:
-                    container[section_name] = sub_container["__edits__"]
+                    target[section_name] = sub_container["__edits__"]
                 else:
-                    container[section_name] = sub_container
+                    target[section_name] = sub_container
                 continue
 
             # ---- edit <name/id> ----
             if line.startswith("edit "):
                 edit_name = self._unquote(line[5:].strip())
                 current_edit = {"__name__": edit_name}
-                current_edit_name = edit_name
                 continue
 
             # ---- next ----
@@ -138,7 +137,6 @@ class FortiGateParser:
                 if current_edit is not None:
                     edits_list.append(current_edit)
                     current_edit = None
-                    current_edit_name = None
                 continue
 
             # ---- end ----
@@ -170,26 +168,14 @@ class FortiGateParser:
                 parts = self._split_set_line(line[7:])
                 if len(parts) >= 2:
                     key = parts[0]
-                    val = parts[1]
+                    values = parts[1:]
                     target = current_edit if current_edit is not None else container
                     existing = target.get(key, [])
                     if isinstance(existing, str):
                         existing = [existing]
-                    existing.append(val)
+                    existing.extend(values)
                     target[key] = existing
                 continue
-
-            # ---- Handle "set" continuation / other statements ----
-            if current_edit is not None and section_path:
-                # Nested config inside edit
-                if line.startswith("config "):
-                    inner_name = line[7:].strip()
-                    inner: dict[str, Any] = {}
-                    i = self._parse_block(lines, i, inner)
-                    if "__edits__" in inner:
-                        current_edit[inner_name] = inner["__edits__"]
-                    else:
-                        current_edit[inner_name] = inner
 
         return i
 

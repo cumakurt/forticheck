@@ -71,7 +71,10 @@ class CisAnalyzer:
 
         # 1.2 Admin Timeout
         idle_timeout = sys_global.get("admintimeout")
-        timeout_val = int(idle_timeout) if idle_timeout is not None else 5
+        try:
+            timeout_val = int(idle_timeout) if idle_timeout is not None else 5
+        except (TypeError, ValueError):
+            timeout_val = 999
         check(
             timeout_val <= 10,
             "Admin Idle Timeout",
@@ -165,9 +168,10 @@ class CisAnalyzer:
             allow = iface.get("allowaccess", "")
             if isinstance(allow, list):
                 allow = " ".join(allow)
+            allow = str(allow).lower()
 
             if "telnet" in allow or "http" in allow:
-                insecure_ifaces.append(iface.get("name", "unknown"))
+                insecure_ifaces.append(iface.get("__name__", iface.get("name", "unknown")))
 
         check(
             len(insecure_ifaces) == 0,

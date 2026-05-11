@@ -131,7 +131,8 @@ class EastWestAnalyzer:
     """Analyze lateral movement risk between internal zones."""
 
     # Sensitive services for lateral movement
-    LATERAL_SERVICES = {"SMB", "RDP", "SSH", "WinRM", "TELNET", "VNC", "MS-SQL", "MYSQL"}
+    LATERAL_SERVICES = {"SMB", "RDP", "SSH", "WINRM", "TELNET", "VNC", "MS-SQL", "MYSQL"}
+    LATERAL_PORTS = {"445", "3389", "22", "5985", "5986", "23", "5900", "1433", "3306"}
 
     def analyze(self, graph: SecurityGraph, device: Device,
                 resolver: ObjectResolver) -> tuple[list[Finding], dict]:
@@ -166,23 +167,27 @@ class EastWestAnalyzer:
                     continue
 
                 all_services: list[str] = []
+                resolved_services: list[str] = []
                 policy_ids: list[str] = []
                 for e in dst_edges:
                     all_services.extend(e.get("services", []))
+                    resolved_services.extend(e.get("resolved_services", []))
                     policy_ids.append(e.get("policy_id", "?"))
 
-                exposure_matrix[src][dst] = all_services
+                exposure_matrix[src][dst] = self._dedupe(all_services + resolved_services)
 
                 # Check for sensitive lateral movement services
-                lateral_hit = set(s.upper() for s in all_services) & self.LATERAL_SERVICES
+                service_hit = set(s.upper() for s in all_services) & self.LATERAL_SERVICES
+                port_hit = set(resolved_services) & self.LATERAL_PORTS
                 has_any_svc = any(e.get("is_any_service") for e in dst_edges)
 
-                if lateral_hit or has_any_svc:
+                if service_hit or port_hit or has_any_svc:
                     severity = Severity.HIGH
                     if dst_trust >= 80:
                         severity = Severity.CRITICAL
 
-                    services_str = ", ".join(lateral_hit) if lateral_hit else "ALL"
+                    sensitive_services = sorted(service_hit | port_hit)
+                    services_str = ", ".join(sensitive_services) if sensitive_services else "ALL"
 
                     finding = Finding(
                         id=f"EAST-WEST-{src}-{dst}",
@@ -201,8 +206,9 @@ class EastWestAnalyzer:
                             f"Implement micro-segmentation."
                         ),
                         details={
-                            "lateral_services": list(lateral_hit),
+                            "lateral_services": sensitive_services,
                             "all_services": all_services,
+                            "resolved_services": resolved_services,
                             "src_trust": src_trust,
                             "dst_trust": dst_trust,
                         },
@@ -211,6 +217,17 @@ class EastWestAnalyzer:
 
         logger.info("East-west analysis: %d findings", len(findings))
         return findings, exposure_matrix
+
+    @staticmethod
+    def _dedupe(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            result.append(value)
+        return result
 
 
 class BasicPolicyAnalyzer:
